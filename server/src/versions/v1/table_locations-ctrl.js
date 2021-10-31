@@ -35,23 +35,21 @@ module.exports = (app) => {
     const id         = uuidv4();
     let { location } = req.body;
 
-    let sequelizeTransaction = '';
+    let transaction = await app.sequelize.transaction();
 
     try{
-      sequelizeTransaction = await app.sequelize.transaction();
-
-      location = location.toLowerCase();
+      location = app.utils.toTitle(location);
 
       await locationRegisterValidation.validateAsync({ id, location });
-      const result = await app.TableLocations.create({ id, location }, { sequelizeTransaction });
+      const result = await app.TableLocations.create({ id, location }, { transaction });
 
-      await sequelizeTransaction.commit();
+      await transaction.commit();
 
       app.utils.printLog(printLogTitle, 'Route: Create', `ID: ${ result.id }`, `Location: ${ result.location }`, 'Status: true');
 
       return res.status(201).json({ status: true, result });
     }catch(err){
-      await sequelizeTransaction.rollback();
+      await transaction.rollback();
 
       if(err.errors){
         if(err.errors[0].message){
@@ -70,26 +68,24 @@ module.exports = (app) => {
     const { id }       = req.params;
     let   { location } = req.body;
 
-    let sequelizeTransaction = '';
+    let transaction = await app.sequelize.transaction();
 
     try{
-      sequelizeTransaction = await app.sequelize.transaction();
-
-      location = location.toLowerCase();
+      location = app.utils.toTitle(location);
 
       if(!(await app.TableLocations.findByPk(id))) throw new Error('Table location not found');
 
       await locationUpdateValidation.validateAsync(req.body);
 
-      await app.TableLocations.update({ location }, { where: { id }}, { sequelizeTransaction });
+      await app.TableLocations.update({ location }, { where: { id }}, { transaction });
 
-      await sequelizeTransaction.commit();
+      await transaction.commit();
 
       app.utils.printLog(printLogTitle, 'Route: Update', 'Status: true');
 
       return res.status(200).json({ status: true });
     }catch(err){
-      await sequelizeTransaction.rollback();
+      await transaction.rollback();
 
       if(err.errors){
         if(err.errors[0].message){
@@ -107,22 +103,20 @@ module.exports = (app) => {
   async function remove(req, res){
     const { id } = req.params;
 
-    let sequelizeTransaction = '';
+    let transaction = await app.sequelize.transaction();
 
     try{
-      sequelizeTransaction = await app.sequelize.transaction();
-
       if(!(await app.TableLocations.findByPk(id))) throw new Error('Table location not found');
 
-      await app.TableLocations.destroy({ where: { id }}, { sequelizeTransaction });
+      await app.TableLocations.destroy({ where: { id }}, { transaction });
 
-      await sequelizeTransaction.commit();
+      await transaction.commit();
 
       app.utils.printLog(printLogTitle, 'Route: Remove', 'Status: true');
 
       return res.status(200).json({ status: true });
     }catch(err){
-      await sequelizeTransaction.rollback();
+      await transaction.rollback();
 
       app.utils.printLog(printLogTitle, 'Route: Remove', 'Status: false', err.message);
 
