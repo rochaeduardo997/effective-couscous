@@ -31,6 +31,120 @@ module.exports = (app) => {
     cancel_reason: Joi.string().required()
   });
 
+  /**
+  * @pt-BR Verifica se o usuário possui uma reserva ativa
+  * @en-US Verify if user has an active reservation
+  * @param user_id Refers to user primary key from database
+  * @return1 You have an active reservation, cancel or edit it
+  * @return2 Boolean true
+  */
+  async function verifyUserActiveReservation(user_id){
+    try{
+      if(!(await verifyIfUserExist(user_id))) return('User not found');
+
+      const userHasActiveReservation = await app.TableReservations.findAll({ where: { fk_users: user_id }});
+      for(let result of userHasActiveReservation){
+        if(result.status === true) return('You have an active reservation, cancel or edit it');
+      }
+  
+      return true;
+    }catch(err){
+      return err.message;
+    }
+  }
+  /**
+  * @pt-BR Verifica se a mesa possui uma reserva no horario inserido
+  * @en-US Verify if table has a reservation on hour
+  * @param table_id             Refers to table primary key from database
+  * @param reservation_start_in Refers to start hour of reservation
+  * @return1 There is an another reservation on this date and hour
+  * @return2 Boolean true
+  */
+  async function verifyTableActiveReservation(table_id, reservation_start_in){
+    try{
+      const tableHasActiveReservation = await app.TableReservations.findAll({ where: { fk_tables: table_id }});
+      for(let result of tableHasActiveReservation){
+        if(
+          result.reservation_end_in > new Date(reservation_start_in) &&
+          result.status === true
+        ) {
+          return('There is an another reservation on this date and hour');
+        }
+      }
+  
+      return true;
+    }catch(err){
+      return err.message;
+    }
+  }
+  /**
+  * @pt-BR Verifica se a mesa está ocupada
+  * @en-US Verify if table is occuped
+  * @param table_id Refers to table primary key from database
+  * @return1 Table not available
+  * @return2 Table not found
+  * @return3 Boolean true
+  */
+  async function verifyTableOccupation(table_id){
+    try{
+      const tableIsOccuped = await app.Tables.findByPk(table_id);
+      
+      if(tableIsOccuped != null){
+        if(tableIsOccuped.status === false) {
+          return ('Table not available');
+        }
+      }else if(tableIsOccuped === null){ 
+        return ('Table not found');
+      }
+
+      return true;
+    }catch(err){
+      return err.message;
+    }
+  }
+  /**
+  * @pt-BR Verifica se a hora de inicio da reserva é menor que a de fim
+  * @en-US Verify if table start reservation is lower than end
+  * @param reservation_start_in Refers to start hour of reservation
+  * @param reservation_end_in   Refers to end hour of reservation
+  * @return1 Reservation end must be greater than start
+  * @return2 Boolean true
+  */
+  async function verifyStartOfReservation(reservation_start_in, reservation_end_in){
+    if(!(new Date(reservation_start_in) < new Date(reservation_end_in))) return('Reservation end must be greater than start');
+
+    return true;
+  }
+  /**
+  * @pt-BR Verifica se o usuario existe
+  * @en-US Verify if user exist
+  * @param user_id Refers to user primary key from database
+  * @return1 User not found
+  * @return2 Boolean true
+  */
+  async function verifyIfUserExist(user_id){
+    if(!(await app.Users.findByPk(user_id))) return('User not found');
+
+    return true;
+  }
+  /**
+  * @pt-BR Verifica se a reserva existe
+  * @en-US Verify if reservation exists
+  * @param reservation_id Refers to reservation primary key from database
+  * @return1 undefined
+  * @return2 result from database
+  */
+  async function verifyIfReservationExist(reservation_id){
+    try{
+      const result = await app.TableReservations.findByPk(reservation_id);
+      if(!result) return undefined;
+      
+      return result;
+    }catch(err){
+      return err.message;
+    }
+  }
+
   async function index(req, res){
     try{
       const result = await app.TableReservations.findAll({
@@ -57,7 +171,6 @@ module.exports = (app) => {
       return res.status(500).json({ status: false, message: err.message });
     }
   }
-
   async function create(req, res){
     const id = uuidv4();
     let { reservation_start_in, reservation_end_in, how_many_people, is_party, fk_users, fk_tables } = req.body;
@@ -68,28 +181,18 @@ module.exports = (app) => {
       if(!fk_users) fk_users = req.id;
       await tableReservationRegisterValidation.validateAsync({ id, how_many_people, is_party, fk_users, fk_tables });
 
-      const userHasActiveReservation  = await app.TableReservations.findAll({ where: { fk_users: req.id }});
-      const tableHasActiveReservation = await app.TableReservations.findAll({ where: { fk_tables }});
+      const resultUserActiveReservation  = await verifyUserActiveReservation(fk_users);
+      const resultTableActiveReservation = await verifyTableActiveReservation(fk_tables, reservation_start_in);
+      const resultTableOccupation        = await verifyTableOccupation(fk_tables);
+      const resultStartOfReservation     = await verifyStartOfReservation(reservation_start_in, reservation_end_in);
+      const resultUserExist              = await verifyIfUserExist(fk_users);
 
-      for(let result of userHasActiveReservation){
-        if(result.status === true) throw new Error('You have an active reservation, cancel or edit it');
-      }
-      for(let result of tableHasActiveReservation){
-        if(result.reservation_end_in > new Date(reservation_start_in)) throw new Error('There is an another reservation on this date and hour');
-      }
-
-      if(!(await app.Users.findByPk(fk_users))) throw new Error('User not found');
-
-      const tableIsOccuped = await app.Tables.findByPk(fk_tables);
-      if(tableIsOccuped != null){
-        if(tableIsOccuped.status === false) {
-          throw new Error('Table do not available');
-        }
-      }else if(tableIsOccuped === null){ 
-        throw new Error('Table not found');
-      }
+      if(resultUserActiveReservation  !== true) throw new Error(resultUserActiveReservation);
+      if(resultTableActiveReservation !== true) throw new Error(resultTableActiveReservation);
+      if(resultTableOccupation        !== true) throw new Error(resultTableOccupation);
+      if(resultStartOfReservation     !== true) throw new Error(resultStartOfReservation);
+      if(resultUserExist              !== true) throw new Error(resultUserExist);
       
-      if(!(new Date(reservation_start_in) < new Date(reservation_end_in))) throw new Error('Reservation end must be greater than start');
       const result = await app.TableReservations.create({ id, reservation_start_in, reservation_end_in, how_many_people, is_party, fk_users, fk_tables }, { transaction });
       
       await transaction.commit();
@@ -112,7 +215,6 @@ module.exports = (app) => {
       return res.status(500).json({ status: false, message: err.message });
     }
   }
-
   async function update(req, res){
     const { id } = req.params;
     let   { how_many_people, is_party } = req.body;
@@ -122,12 +224,12 @@ module.exports = (app) => {
     try{
       await tableReservationUpdateValidation.validateAsync({ how_many_people, is_party });
 
-      const userHasReservationActive = await app.TableReservations.findOne({}, { where: fk_users = req.id });
-      const ifReservationExist       = await app.TableReservations.findByPk(id);
+      const resultUserActiveReservation = await verifyUserActiveReservation(req.id);
+      const ifReservationExist          = await verifyIfReservationExist(id);
 
-      if(userHasReservationActive === null)   throw new Error('You do not have an active reservation yet, do one before edit it');
-      if(!ifReservationExist)                 throw new Error('Reservation not found');
-      if(ifReservationExist.status === false) throw new Error('Reservation has been canceled');
+      if(!ifReservationExist)                   throw new Error('Reservation not found');
+      if(ifReservationExist.status   === false) throw new Error('This reservation has been canceled');
+      if(resultUserActiveReservation === true)  throw new Error('You do not have an active reservation yet, do one before edit it');
       
       await app.TableReservations.update({ how_many_people, is_party }, { where: { id }}, { transaction });
 
@@ -151,31 +253,29 @@ module.exports = (app) => {
       return res.status(500).json({ status: false, message: err.message });
     }
   }
-
   async function remove(req, res){
     const { id }            = req.params;
     let   { cancel_reason } = req.body
 
-    let sequelizeTransaction = '';
+    let transaction = await app.sequelize.transaction();
 
     try{
-      sequelizeTransaction = await app.sequelize.transaction();
-
       await tableReservationRemoveValidation.validateAsync({ id, ...req.body });
 
-      const ifReservationExist = await app.TableReservations.findByPk(id);
-      if(!ifReservationExist) throw new Error('Reservation not found');
-      if(ifReservationExist.status === false) throw new Error('Reservation has been canceled');
+      const ifReservationExist = await verifyIfReservationExist(id);
 
-      await app.TableReservations.update({ cancel_reason, status: false }, { where: { id }}, { sequelizeTransaction });
+      if(!ifReservationExist)                 throw new Error('Reservation not found');
+      if(ifReservationExist.status === false) throw new Error('This reservation already been canceled');
 
-      await sequelizeTransaction.commit();
+      await app.TableReservations.update({ cancel_reason, status: false }, { where: { id }}, { transaction });
+
+      await transaction.commit();
 
       app.utils.printLog(printLogTitle, 'Route: Remove', 'Type: Paranoid', 'Status: true');
 
       return res.status(200).json({ status: true });
     }catch(err){
-      await sequelizeTransaction.rollback();
+      await transaction.rollback();
 
       app.utils.printLog(printLogTitle, 'Route: Remove', 'Type: Paranoid', 'Status: false', err.message);
 
@@ -185,6 +285,6 @@ module.exports = (app) => {
 
   app.get('/tablereservations',     adminAuth, index);
   app.post('/tablereservation',     basicAuth, create);
-  app.put('/tablereservation/:id',  adminAuth, update);
+  app.put('/tablereservation/:id',  basicAuth, update);
   app.post('/tablereservation/:id', adminAuth, remove);
 }
