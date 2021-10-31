@@ -8,5 +8,11 @@ module.exports = {
     }
 
     console.log(chalk.inverse.bold(' ', new Date().toISOString(), ' '), '|', chalk.inverse.bold(' ', from, ' '), '|', allArgs);
+  },
+
+  toTitle(word){
+    word = word[0].toUpperCase() + word.substring(1).toLowerCase();
+
+    return word;
   }
 }
