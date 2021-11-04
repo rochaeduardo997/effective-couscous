@@ -26,6 +26,13 @@ module.exports = (app) => {
     fk_table_locations: Joi.string().guid({ version: [ 'uuidv4' ]})
   });
 
+  /**
+  * @pt-BR Verifica se a mesa existe
+  * @en-US Verify if table exist
+  * @param table_id Refers to table primary key from database
+  * @return1 Table not found
+  * @return2 Boolean true
+  */
   async function verifyIfTableExist(table_id){
     if(!(await app.Tables.findByPk(table_id))) return('Table not found');
 
