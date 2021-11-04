@@ -26,12 +26,16 @@ module.exports = (app) => {
     fk_table_locations: Joi.string().guid({ version: [ 'uuidv4' ]})
   });
 
+  async function verifyIfTableExist(table_id){
+    if(!(await app.Tables.findByPk(table_id))) return('Table not found');
+
+    return true;
+  }
+
   async function index(req, res){
     try{
       const result = await app.Tables.findAll({ 
-        include:[
-          { model: app.TableLocations }
-        ],
+        include:[{ model: app.TableLocations }],
         attributes:{ exclude: [ 'fk_table_locations', 'fk_users' ] }
       });
 
@@ -49,21 +53,19 @@ module.exports = (app) => {
     const id = uuidv4();
     let { table_number, fk_table_locations } = req.body;
 
-    let sequelizeTransaction = '';
+    let transaction = await app.sequelize.transaction();
 
     try{
-      sequelizeTransaction = await app.sequelize.transaction();
-
       await tableRegisterValidation.validateAsync({ id, table_number, fk_table_locations });
-      const result    = await app.Tables.create({ id, table_number, fk_table_locations }, { sequelizeTransaction });
+      const result    = await app.Tables.create({ id, table_number, fk_table_locations }, { transaction });
 
-      await sequelizeTransaction.commit();
+      await transaction.commit();
 
       app.utils.printLog(printLogTitle, 'Route: Create', `ID: ${ result.id }`, `Table number: ${ result.table_number }`, 'Status: true');
 
       return res.status(201).json({ status: true, result });
     }catch(err){
-      await sequelizeTransaction.rollback();
+      await transaction.rollback();
 
       if(err.errors){
         if(err.errors[0].message){
@@ -82,25 +84,23 @@ module.exports = (app) => {
     const { id } = req.params;
     let   { table_number, fk_table_locations, status } = req.body;
 
-    let sequelizeTransaction = '';
+    let transaction = await app.sequelize.transaction();
 
     try{
-      sequelizeTransaction = await app.sequelize.transaction();
-
-      const ifTableExist = await app.Tables.findByPk(id);
-      if(!ifTableExist) throw new Error('Table not found');
+      const resultTableExist = await verifyIfTableExist(id);
+      if(resultTableExist !== true) throw new Error(resultTableExist);
 
       await tableUpdateValidation.validateAsync(req.body);
 
-      await app.Tables.update({ table_number, status, fk_table_locations }, { where: { id }}, { sequelizeTransaction });
+      await app.Tables.update({ table_number, status, fk_table_locations }, { where: { id }}, { transaction });
 
-      await sequelizeTransaction.commit();
+      await transaction.commit();
 
       app.utils.printLog(printLogTitle, 'Route: Update', 'Status: true');
 
       return res.status(200).json({ status: true });
     }catch(err){
-      await sequelizeTransaction.rollback();
+      await transaction.rollback();
 
       if(err.errors){
         if(err.errors[0].message){
@@ -118,23 +118,21 @@ module.exports = (app) => {
   async function remove(req, res){
     const { id } = req.params;
 
-    let sequelizeTransaction = '';
+    let transaction = await app.sequelize.transaction();
 
     try{
-      sequelizeTransaction = await app.sequelize.transaction();
-      
-      const ifTableExist = await app.Tables.findByPk(id);
-      if(!ifTableExist) throw new Error('Table not found');
+      const resultTableExist = await verifyIfTableExist(id);
+      if(resultTableExist !== true) throw new Error(resultTableExist);
 
-      await app.Tables.destroy({ where: { id }}, { sequelizeTransaction });
+      await app.Tables.destroy({ where: { id }}, { transaction });
 
-      await sequelizeTransaction.commit();
+      await transaction.commit();
 
       app.utils.printLog(printLogTitle, 'Route: Remove', 'Status: true');
 
       return res.status(200).json({ status: true });
     }catch(err){
-      await sequelizeTransaction.rollback();
+      await transaction.rollback();
 
       app.utils.printLog(printLogTitle, 'Route: Remove', 'Status: false', err.message);
 
@@ -142,8 +140,8 @@ module.exports = (app) => {
     }
   }
 
-  app.get('/tables',                 basicAuth, index);
-  app.post('/table',                 adminAuth, create);
-  app.put('/table/:id',              adminAuth, update);
-  app.delete('/table/:id',           adminAuth, remove);
+  app.get('/tables',       basicAuth, index);
+  app.post('/table',       adminAuth, create);
+  app.put('/table/:id',    adminAuth, update);
+  app.delete('/table/:id', adminAuth, remove);
 }
