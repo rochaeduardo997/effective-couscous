@@ -40,8 +40,8 @@ module.exports = (app) => {
     
     active:     Joi.boolean()
   });
-
-  const encryptPassword = async (password) => {
+  
+  async function encryptPassword(password){
     try{
       const newPassword = await bcrypt.hash(password, securityConfigs.numberOfSaltsBcrypt);
 
@@ -49,8 +49,8 @@ module.exports = (app) => {
     }catch(err){
       return app.utils.printLog('Encrypt Password', 'Status: false', err.message);
     }
-  };
-  const decryptPassword = async (originalPassword, hashPassword) => {
+  }
+  async function decryptPassword(originalPassword, hashPassword){
     try{
       const isOriginalPassword = await bcrypt.compare(originalPassword, hashPassword);
 
@@ -58,136 +58,44 @@ module.exports = (app) => {
     }catch(err){
       return app.utils.printLog('Decrypt Password', 'Status: false', err.message);
     }
-  };
-
-  async function index(req, res){
-    try{
-      const result = await app.Users.findAll({ attributes: { exclude: 'password' }});
-
-      app.utils.printLog(printLogTitle, 'Route: Index', `Found: ${ result.length }`, 'Status: true');
-
-      return res.status(200).json({ status: true, found: result.length, result });
-    }catch(err){
-      app.utils.printLog(printLogTitle, 'Route: Index', 'Status: false', err.message);
-
-      return res.status(500).json({ status: false, message: err.message });
-    }
   }
 
-  async function create(req, res){
-    const id = uuidv4();
-    let { first_name, surname, username, contact, email, password, active } = req.body;
+  /**
+  * @pt-BR Verifica se o nome de usuario já está em uso
+  * @en-US Verify if username already in use
+  * @param username Refers to username from database
+  * @return1 Username already in use
+  * @return2 Boolean true
+  */
+  async function verifyIfUsernameInUse(username){
+    if(username && await app.Users.findOne({ where: { username }})) return('Username already in use');
 
-    let sequelizeTransaction = '';
-
-    try{
-      sequelizeTransaction = await app.sequelize.transaction();
-
-      username = username.toLowerCase();
-      email    = email.toLowerCase();
-
-      password = await encryptPassword(password);
-
-      await userRegisterValidation.validateAsync({ id, first_name, surname, username, contact, email, password, active });
-      const result    = await app.Users.create({ id, first_name, surname, username, contact, email, password, active }, { sequelizeTransaction });
-      result.password = undefined;
-
-      await sequelizeTransaction.commit();
-
-      app.utils.printLog(printLogTitle, 'Route: Create', `ID: ${ result.id }`, `Username: ${ result.username }`, 'Status: true');
-
-      return res.status(201).json({ status: true, result });
-    }catch(err){
-      await sequelizeTransaction.rollback();
-
-      if(err.errors){
-        if(err.errors[0].message){
-          app.utils.printLog(printLogTitle, 'Route: Create', 'Status: false', err.errors[0].message);
-
-          return res.status(500).json({ status: false, message: err.errors[0].message });
-        }
-      }
-      app.utils.printLog(printLogTitle, 'Route: Create', 'Status: false', err.message);
-
-      return res.status(500).json({ status: false, message: err.message });
-    }
+    return true;
   }
+  /**
+  * @pt-BR Verifica se o email já está em uso
+  * @en-US Verify if email already in use
+  * @param email Refers to user email from database
+  * @return1 Username already in use
+  * @return2 Boolean true
+  */
+  async function verifyIfEmailInUse(email){
+    if(email && await app.Users.findOne({ where: { email }})) return('Email already in use');
 
-  async function update(req, res){
-    const { id } = req.params;
-    let   { first_name, surname, username, contact, email, password, profile, active } = req.body;
-
-    let sequelizeTransaction = '';
-
-    try{
-      sequelizeTransaction = await app.sequelize.transaction();
-
-      const ifUserExist = await app.Users.findByPk(id);
-
-      if(ifUserExist.username === 'mainadmin') throw new Error('mainadmin user canno\'t be updated');
-      if(username === 'mainadmin')             throw new Error('Username canno\'t be mainadmin');
-      if(profile  === 'creator')               throw new Error('creator profile canno\'t be used');
-      if(!ifUserExist)                         throw new Error('User not found');
-
-      await userUpdateValidation.validateAsync(req.body);
-
-      if(username) username = username.toLowerCase();
-      if(email)    email    = email.toLowerCase();
-      if(password) password = await encryptPassword(password);
-
-      await app.Users.update({ first_name, surname, username, contact, email, password, profile, active }, { where: { id }}, { sequelizeTransaction });
-
-      await sequelizeTransaction.commit();
-
-      app.utils.printLog(printLogTitle, 'Route: Update', 'Status: true');
-
-      return res.status(200).json({ status: true });
-    }catch(err){
-      await sequelizeTransaction.rollback();
-
-      if(err.errors){
-        if(err.errors[0].message){
-          app.utils.printLog(printLogTitle, 'Route: Update', 'Status: false', err.errors[0].message);
-
-          return res.status(500).json({ status: false, message: err.errors[0].message });
-        }
-      }
-      app.utils.printLog(printLogTitle, 'Route: Update', 'Status: false', err.message);
-
-      return res.status(500).json({ status: false, message: err.message });
-    }
+    return true;
   }
+  /**
+  * @pt-BR Verifica se o usuario existe
+  * @en-US Verify if user exist
+  * @param user_id Refers to user primary key from database
+  * @return1 User not found
+  * @return2 User object from database
+  */
+  async function verifyIfUserExist(user_id){
+    const result = await app.Users.findByPk(user_id);
+    if(!result) return('User not found');
 
-  async function remove(req, res){
-    const { id } = req.params;
-
-    let sequelizeTransaction = '';
-
-    try{
-      sequelizeTransaction = await app.sequelize.transaction();
-      
-      const ifUserExist = await app.Users.findByPk(id);
-
-      if(ifUserExist.username === 'mainadmin') throw new Error('mainadmin user canno\'t be removed');
-      if(!ifUserExist)                         throw new Error('User not found');
-
-
-      await app.Users.destroy({ where: { id }}, { sequelizeTransaction });
-
-      await sequelizeTransaction.commit();
-      
-      await app.redis.setAsync(`login:user:${id}`, '');
-
-      app.utils.printLog(printLogTitle, 'Route: Remove', 'Status: true');
-
-      return res.status(200).json({ status: true });
-    }catch(err){
-      await sequelizeTransaction.rollback();
-
-      app.utils.printLog(printLogTitle, 'Route: Remove', 'Status: false', err.message);
-
-      return res.status(500).json({ status: false, message: err.message });
-    }
+    return result;
   }
 
   async function login(req, res){
@@ -223,6 +131,150 @@ module.exports = (app) => {
       throw new Error('User not found or doesn\'t exists');
     }catch(err){
       app.utils.printLog(printLogTitle, 'Route: Login', 'Status: false', err.message);
+
+      return res.status(500).json({ status: false, message: err.message });
+    }
+  }
+
+  async function index(req, res){
+    try{
+      const result = await app.Users.findAll({ attributes: { exclude: 'password' }});
+
+      app.utils.printLog(printLogTitle, 'Route: Index', `Found: ${ result.length }`, 'Status: true');
+
+      return res.status(200).json({ status: true, found: result.length, result });
+    }catch(err){
+      app.utils.printLog(printLogTitle, 'Route: Index', 'Status: false', err.message);
+
+      return res.status(500).json({ status: false, message: err.message });
+    }
+  }
+
+  async function create(req, res){
+    const id = uuidv4();
+    let { first_name, surname, username, contact, email, password, active } = req.body;
+
+    let transaction = await app.sequelize.transaction();
+
+    try{
+      username = username.toLowerCase();
+      email    = email.toLowerCase();
+
+      const resultIfUsernameInUse = await verifyIfUsernameInUse(username);
+      const resultIfEmailInUse    = await verifyIfEmailInUse(email);
+
+      if(resultIfUsernameInUse !== true) throw new Error(resultIfUsernameInUse);
+      if(resultIfEmailInUse    !== true) throw new Error(resultIfEmailInUse);
+
+      password = await encryptPassword(password);
+
+      await userRegisterValidation.validateAsync({ id, first_name, surname, username, contact, email, password, active });
+      const result    = await app.Users.create({ id, first_name, surname, username, contact, email, password, active }, { transaction });
+      result.password = undefined;
+
+      await transaction.commit();
+
+      app.utils.printLog(printLogTitle, 'Route: Create', `ID: ${ result.id }`, `Username: ${ result.username }`, 'Status: true');
+
+      return res.status(201).json({ status: true, result });
+    }catch(err){
+      await transaction.rollback();
+
+      if(err.errors){
+        if(err.errors[0].message){
+          app.utils.printLog(printLogTitle, 'Route: Create', 'Status: false', err.errors[0].message);
+
+          return res.status(500).json({ status: false, message: err.errors[0].message });
+        }
+      }
+      app.utils.printLog(printLogTitle, 'Route: Create', 'Status: false', err.message);
+
+      return res.status(500).json({ status: false, message: err.message });
+    }
+  }
+
+  async function update(req, res){
+    const { id } = req.params;
+    let   { first_name, surname, username, contact, email, password, profile, active } = req.body;
+
+    let transaction = await app.sequelize.transaction();
+
+    try{
+      if(username) username = username.toLowerCase();
+      if(email)    email    = email.toLowerCase();
+      if(password) password = await encryptPassword(password);
+      
+      const resultIfUserExist = await verifyIfUserExist(id);
+
+      if(typeof resultIfUserExist !== 'object') {
+        throw new Error(resultIfUserExist);
+      }else{
+        const resultIfUsernameInUse = await verifyIfUsernameInUse(username);
+        const resultIfEmailInUse    = await verifyIfEmailInUse(email);
+
+        if(resultIfUserExist.username === 'mainadmin') throw new Error('mainadmin user canno\'t be updated');
+        if(resultIfUsernameInUse      !== true)        throw new Error(resultIfUsernameInUse);
+        if(resultIfEmailInUse         !== true)        throw new Error(resultIfEmailInUse);
+        if(username                   === 'mainadmin') throw new Error('Username canno\'t be mainadmin');
+        if(profile                    === 'creator')   throw new Error('creator profile canno\'t be used');
+
+        delete resultIfUsernameInUse;
+        delete resultIfEmailInUse;
+      }
+      delete resultIfUserExist;
+
+      await userUpdateValidation.validateAsync(req.body);
+
+      await app.Users.update({ first_name, surname, username, contact, email, password, profile, active }, { where: { id }}, { transaction });
+
+      await transaction.commit();
+
+      app.utils.printLog(printLogTitle, 'Route: Update', 'Status: true');
+
+      return res.status(200).json({ status: true });
+    }catch(err){
+      await transaction.rollback();
+
+      if(err.errors){
+        if(err.errors[0].message){
+          app.utils.printLog(printLogTitle, 'Route: Update', 'Status: false', err.errors[0].message);
+
+          return res.status(500).json({ status: false, message: err.errors[0].message });
+        }
+      }
+      app.utils.printLog(printLogTitle, 'Route: Update', 'Status: false', err.message);
+
+      return res.status(500).json({ status: false, message: err.message });
+    }
+  }
+
+  async function remove(req, res){
+    const { id } = req.params;
+
+    let transaction = await app.sequelize.transaction();
+
+    try{
+      const resultIfUserExist = await verifyIfUserExist(id);
+
+      if(typeof resultIfUserExist !== 'object'){
+        throw new Error(resultIfUserExist);
+      }else{
+        if(resultIfUserExist.username === 'mainadmin') throw new Error('mainadmin user canno\'t be removed');
+      }
+
+      await app.Users.destroy({ where: { id }}, { transaction });
+
+      await transaction.commit();
+      
+      await app.redis.setAsync(`login:user:${id}`, '');
+
+      app.utils.printLog(printLogTitle, 'Route: Remove', 'Status: true');
+
+      return res.status(200).json({ status: true });
+    }catch(err){
+      await transaction.rollback();
+
+      app.utils.printLog(printLogTitle, 'Route: Remove', 'Status: false', err.message);
 
       return res.status(500).json({ status: false, message: err.message });
     }
