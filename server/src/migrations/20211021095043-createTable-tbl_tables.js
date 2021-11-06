@@ -12,7 +12,8 @@ module.exports = {
 
       status:             { type: Sequelize.BOOLEAN, allowNull: false, defaultValue: true },
 
-      fk_table_locations: { type: Sequelize.UUID, allowNull: true, references: { schema: "register", model: "tbl_table_locations", key: "id" }},
+      fk_table_locations: { type: Sequelize.UUID, allowNull: true,  references: { model: { tableName: 'tbl_table_locations', schema: 'register' },     key: 'id' }},
+      fk_availability:    { type: Sequelize.UUID, allowNull: false, references: { model: { tableName: 'tbl_availability',    schema: 'availability' }, key: 'id' }},
 
       createdAt:          { type: Sequelize.DATE, defaultValue: new Date() },
       updatedAt:          { type: Sequelize.DATE, defaultValue: new Date() }
