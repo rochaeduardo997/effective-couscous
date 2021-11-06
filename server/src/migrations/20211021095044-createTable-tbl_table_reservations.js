@@ -14,9 +14,9 @@ module.exports = {
       how_many_people:      { type: Sequelize.INTEGER, allowNull: false },
       is_party:             { type: Sequelize.BOOLEAN, allowNull: true, defaultValue: false },
 
-      fk_users:             { type: Sequelize.UUID, allowNull: false, references: { schema: "register", model: "tbl_users",  key: "id" }},
-      fk_tables:            { type: Sequelize.UUID, allowNull: false, references: { schema: "register", model: "tbl_tables", key: "id" }},
-      
+      fk_users:             { type: Sequelize.UUID, allowNull: false, references: { model: { tableName: 'tbl_users',  schema: 'register' }, key: 'id' }},
+      fk_tables:            { type: Sequelize.UUID, allowNull: false, references: { model: { tableName: 'tbl_tables', schema: 'register' }, key: 'id' }},
+
       status:               { type: Sequelize.BOOLEAN, allowNull: true, defaultValue: true },
       cancel_reason:        { type: Sequelize.STRING,  allowNull: true },
       
