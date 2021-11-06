@@ -225,11 +225,11 @@ module.exports = (app) => {
       await tableReservationUpdateValidation.validateAsync({ how_many_people, is_party });
 
       const resultUserActiveReservation = await verifyUserActiveReservation(req.id);
-      const ifReservationExist          = await verifyIfReservationExist(id);
+      const resultIfReservationExist    = await verifyIfReservationExist(id);
 
-      if(!ifReservationExist)                   throw new Error('Reservation not found');
-      if(ifReservationExist.status   === false) throw new Error('This reservation has been canceled');
-      if(resultUserActiveReservation === true)  throw new Error('You do not have an active reservation yet, do one before edit it');
+      if(!resultIfReservationExist)                 throw new Error('Reservation not found');
+      if(resultIfReservationExist.status === false) throw new Error('This reservation has been canceled');
+      if(resultUserActiveReservation     === true)  throw new Error('You do not have an active reservation yet, do one before edit it');
       
       await app.TableReservations.update({ how_many_people, is_party }, { where: { id }}, { transaction });
 
