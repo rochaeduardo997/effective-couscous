@@ -14,7 +14,8 @@ module.exports = (app) => {
 
     status:             Joi.boolean(),
 
-    fk_table_locations: Joi.string().guid({ version: [ 'uuidv4' ]})
+    fk_table_locations: Joi.string().guid({ version: [ 'uuidv4' ]}),
+    fk_availability:    Joi.string().guid({ version: [ 'uuidv4' ]})
   });
   const tableUpdateValidation = Joi.object({
     id:                 Joi.string().guid({ version: [ 'uuidv4' ]}),
@@ -23,7 +24,8 @@ module.exports = (app) => {
 
     status:             Joi.boolean(),
 
-    fk_table_locations: Joi.string().guid({ version: [ 'uuidv4' ]})
+    fk_table_locations: Joi.string().guid({ version: [ 'uuidv4' ]}),
+    fk_availability:    Joi.string().guid({ version: [ 'uuidv4' ]})
   });
 
   /**
@@ -57,14 +59,15 @@ module.exports = (app) => {
   }
 
   async function create(req, res){
-    const id = uuidv4();
-    let { table_number, fk_table_locations } = req.body;
+    const id             = uuidv4();
+    
+    let { table_number, fk_table_locations, fk_availability } = req.body;
 
     let transaction = await app.sequelize.transaction();
-
+    
     try{
-      await tableRegisterValidation.validateAsync({ id, table_number, fk_table_locations });
-      const result    = await app.Tables.create({ id, table_number, fk_table_locations }, { transaction });
+      await tableRegisterValidation.validateAsync({ id, table_number, fk_table_locations, fk_availability });
+      const result = await app.Tables.create({ id, table_number, fk_table_locations, fk_availability }, { transaction });
 
       await transaction.commit();
 
