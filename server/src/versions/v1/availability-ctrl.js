@@ -8,15 +8,17 @@ module.exports = (app) => {
   const printLogTitle = 'Availability';
 
   const availabilityRegisterValidation = Joi.object({
-    id:         Joi.string().required().guid({ version: [ 'uuidv4' ]}),
+    availabilityId: Joi.string().required().guid({ version: [ 'uuidv4' ]}),
+    dayId:          Joi.string().required().guid({ version: [ 'uuidv4' ]}),
+    rangeId:        Joi.string().required().guid({ version: [ 'uuidv4' ]}),
 
-    day_name: Joi.string().required(),
+    day_name: Joi.string().required().valid('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'),
+    status:   Joi.boolean().required(),
 
-    active:     Joi.boolean().required(),
-
-    profile:    Joi.string().valid('creator', 'administrator', 'supervisor', 'dashboard', 'bartender'),
+    start_in: Joi.number().min(1).required(),
+    end_in:   Joi.number().max(86400).required(),
   });
-  
+
   async function index(req, res){
     try{
       const availabilityResult = await app.Availability.findAll();
@@ -73,6 +75,8 @@ module.exports = (app) => {
         const { day_name, status, ranges } = day;
         const { start_in, end_in }         = ranges;
 
+        await availabilityRegisterValidation.validateAsync({ availabilityId, dayId, rangeId, day_name, status, start_in, end_in });
+        
         await app.Days.create({ id: dayId, day_name, status });
 
         await app.Ranges.create({ id: rangeId, start_in, end_in, fk_days: dayId }, { transaction });
