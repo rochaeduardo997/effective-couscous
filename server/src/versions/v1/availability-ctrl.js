@@ -7,6 +7,18 @@ const basicAuth      = require('../../middleware/basicAuth');
 module.exports = (app) => {
   const printLogTitle = 'Availability';
 
+  const availabilityRegisterValidation = Joi.object({
+    availabilityId: Joi.string().required().guid({ version: [ 'uuidv4' ]}),
+    dayId:          Joi.string().required().guid({ version: [ 'uuidv4' ]}),
+    rangeId:        Joi.string().required().guid({ version: [ 'uuidv4' ]}),
+
+    day_name: Joi.string().required().valid('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'),
+    status:   Joi.boolean().required(),
+
+    start_in: Joi.number().min(1).required(),
+    end_in:   Joi.number().max(86400).required(),
+  });
+
   async function index(req, res){
     try{
       const availabilityResult = await app.Availability.findAll();
@@ -18,8 +30,20 @@ module.exports = (app) => {
         availabilityObj.id = availability.id;
 
         for(let day in availability.dataValues){
-          if(day !== 'id') availabilityObj[day] = await app.Ranges.findOne({ where: { fk_days: availability.dataValues[ day ]}, attributes: { exclude: [ 'id', 'fk_days' ]}});
-          console.log(availability.dataValues[day])
+          if(day !== 'id') {
+            availabilityObj[day] = await app.Ranges.findOne({ 
+              where: { 
+                fk_days: availability.dataValues[ day ]
+              },
+              include:[{ 
+                model: app.Days,
+                attributes: { exclude: [ 'id', 'fk_table_locations', 'createdAt', 'updatedAt' ]}
+              }],
+              attributes: { 
+                exclude: [ 'id', 'fk_days' ]
+              }
+            });
+          }
         }
 
         result.push(availabilityObj);
@@ -51,6 +75,8 @@ module.exports = (app) => {
         const { day_name, status, ranges } = day;
         const { start_in, end_in }         = ranges;
 
+        await availabilityRegisterValidation.validateAsync({ availabilityId, dayId, rangeId, day_name, status, start_in, end_in });
+        
         await app.Days.create({ id: dayId, day_name, status });
 
         await app.Ranges.create({ id: rangeId, start_in, end_in, fk_days: dayId }, { transaction });
@@ -109,8 +135,40 @@ module.exports = (app) => {
     }
   }
 
-  app.get('/availability',  basicAuth, index);
-  app.post('/availability', adminAuth, create);
-  // app.put('/table/:id',    adminAuth, update);
+  // async function update(req, res){
+  //   const { id }           = req.params;
+  //   let   { availability } = req.body;
+
+  //   let transaction = await app.sequelize.transaction();
+
+  //   try{
+  //     await userUpdateValidation.validateAsync(req.body);
+
+  //     await app.Users.update({ first_name, surname, username, contact, email, password, profile, active }, { where: { id }}, { transaction });
+
+  //     await transaction.commit();
+
+  //     app.utils.printLog(printLogTitle, 'Route: Update', 'Status: true');
+
+  //     return res.status(200).json({ status: true });
+  //   }catch(err){
+  //     await transaction.rollback();
+
+  //     if(err.errors){
+  //       if(err.errors[0].message){
+  //         app.utils.printLog(printLogTitle, 'Route: Update', 'Status: false', err.errors[0].message);
+
+  //         return res.status(500).json({ status: false, message: err.errors[0].message });
+  //       }
+  //     }
+  //     app.utils.printLog(printLogTitle, 'Route: Update', 'Status: false', err.message);
+
+  //     return res.status(500).json({ status: false, message: err.message });
+  //   }
+  // }
+
+  app.get('/availability',     basicAuth, index);
+  app.post('/availability',    adminAuth, create);
+  // app.put('/availability/:id', adminAuth, update);
   // app.delete('/table/:id', adminAuth, remove);
 }
