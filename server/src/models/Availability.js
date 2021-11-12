@@ -21,13 +21,13 @@ class Availability extends Model{
   }
 
   static associate(Model){
-    this.belongsTo(Model.Days, { foreignKey: "fk_mon_id" });
-    this.belongsTo(Model.Days, { foreignKey: "fk_tue_id" });
-    this.belongsTo(Model.Days, { foreignKey: "fk_wed_id" });
-    this.belongsTo(Model.Days, { foreignKey: "fk_thu_id" });
-    this.belongsTo(Model.Days, { foreignKey: "fk_fri_id" });
-    this.belongsTo(Model.Days, { foreignKey: "fk_sat_id" });
-    this.belongsTo(Model.Days, { foreignKey: "fk_sun_id" });
+    this.belongsTo(Model.Days, { foreignKey: "fk_mon_id", onDelete: 'cascade' });
+    this.belongsTo(Model.Days, { foreignKey: "fk_tue_id", onDelete: 'cascade' });
+    this.belongsTo(Model.Days, { foreignKey: "fk_wed_id", onDelete: 'cascade' });
+    this.belongsTo(Model.Days, { foreignKey: "fk_thu_id", onDelete: 'cascade' });
+    this.belongsTo(Model.Days, { foreignKey: "fk_fri_id", onDelete: 'cascade' });
+    this.belongsTo(Model.Days, { foreignKey: "fk_sat_id", onDelete: 'cascade' });
+    this.belongsTo(Model.Days, { foreignKey: "fk_sun_id", onDelete: 'cascade' });
   }
 }
 
