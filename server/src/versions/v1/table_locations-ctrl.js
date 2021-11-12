@@ -123,21 +123,21 @@ module.exports = (app) => {
   async function remove(req, res){
     const { id } = req.params;
 
-    let sequelizeTransaction = await app.sequelize.transaction();
+    let transaction = await app.sequelize.transaction();
 
     try{
       const ifLocationExist = await verifyIfLocationExist(id);
       if(ifLocationExist !== true) throw new Error(ifLocationExist);
 
-      await app.TableLocations.destroy({ where: { id }}, { sequelizeTransaction });
+      await app.TableLocations.destroy({ where: { id }}, { transaction });
 
-      await sequelizeTransaction.commit();
+      await transaction.commit();
 
       app.utils.printLog(printLogTitle, 'Route: Remove', 'Status: true');
 
       return res.status(200).json({ status: true });
     }catch(err){
-      await sequelizeTransaction.rollback();
+      await transaction.rollback();
 
       app.utils.printLog(printLogTitle, 'Route: Remove', 'Status: false', err.message);
 
