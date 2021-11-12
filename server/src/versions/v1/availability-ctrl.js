@@ -180,7 +180,6 @@ module.exports = (app) => {
       return res.status(500).json({ status: false, message: err.message });
     }
   }
-
   async function update(req, res){
     const { id }           = req.params;
     let   { availability } = req.body;
@@ -195,9 +194,9 @@ module.exports = (app) => {
           const { id: rangeId, start_in, end_in, Day } = availability[fk_day];
           const { id: dayId, day_name, status }        = Day;
 
-          if(start_in > end_in) throw new Error('Start cannot be greater than end');
-
           await availabilityUpdateValidation.validateAsync({ dayId, rangeId, day_name, status, start_in, end_in}); // second verification, ranges and day
+
+          if(start_in > end_in) throw new Error('Start cannot be greater than end');
 
           const verifyIfRangeExist = await app.Ranges.findByPk(rangeId);
           if(!verifyIfRangeExist) throw new Error('Range not exist');
@@ -234,9 +233,43 @@ module.exports = (app) => {
     }
   }
 
-  app.get('/availability',     adminAuth, index);
-  app.get('/availability/:id', adminAuth, findById);
-  app.post('/availability',    adminAuth, create);
-  app.put('/availability/:id', adminAuth, update);
-  // app.delete('/table/:id', adminAuth, remove);
+  async function remove(req, res){
+    const { id } = req.params;
+
+    let transaction = await app.sequelize.transaction();
+
+    try{
+      const verifyIfAvailabilityExist = await app.Availability.findByPk(id);
+      if(!verifyIfAvailabilityExist) throw new Error('Availability not found');
+
+      for(let fk_day in verifyIfAvailabilityExist.dataValues){
+        const dayId = verifyIfAvailabilityExist[fk_day];
+        
+        if(fk_day !== 'id'){
+          const verifyIfDayExistInRanges = await app.Ranges.findOne({ where: { fk_days: dayId }});
+          if(!verifyIfDayExistInRanges) throw new Error('Day not exist');
+ 
+          await app.Days.destroy({ where: { id: verifyIfDayExistInRanges.fk_days }}, { transaction });
+        }
+      }
+
+      await transaction.commit();
+
+      app.utils.printLog(printLogTitle, 'Route: Remove', 'Status: true');
+
+      return res.status(200).json({ status: true });
+    }catch(err){
+      await transaction.rollback();
+
+      app.utils.printLog(printLogTitle, 'Route: Remove', 'Status: false', err.message);
+
+      return res.status(500).json({ status: false, message: err.message });
+    }
+  }
+
+  app.get('/availability',        adminAuth, index);
+  app.get('/availability/:id',    adminAuth, findById);
+  app.post('/availability',       adminAuth, create);
+  app.put('/availability/:id',    adminAuth, update);
+  app.delete('/availability/:id', adminAuth, remove);
 }
