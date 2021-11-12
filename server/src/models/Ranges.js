@@ -18,7 +18,7 @@ class Ranges extends Model{
   }
   
   static associate(Model){
-    this.belongsTo(Model.Days, { foreignKey: "fk_days" });
+    this.belongsTo(Model.Days, { foreignKey: "fk_days", onDelete: 'cascade' });
   }
 }
 
